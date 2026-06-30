@@ -1,0 +1,376 @@
+[
+  {
+    "build_id": "BUILD-001",
+    "build_number": 1,
+    "created_at": "2024-01-10T09:00:00Z",
+    "mrs": [
+      {
+        "mr_id": "MR-101",
+        "title": "Add OAuth 2.0 Google login support",
+        "description": "Implements Google OAuth flow in the auth service. Adds OAuth handler, token exchange, and profile mapping.",
+        "repo": "auth-service",
+        "files_changed": [
+          "src/auth/oauth_handler.py",
+          "src/auth/token_exchange.py",
+          "src/models/user_profile.py",
+          "config/oauth_config.py"
+        ]
+      },
+      {
+        "mr_id": "MR-102",
+        "title": "Fix session token expiry bug",
+        "description": "Session tokens were not being invalidated on password change. Fixes the session manager to clear tokens on auth events.",
+        "repo": "auth-service",
+        "files_changed": [
+          "src/session/manager.py",
+          "src/session/token_store.py"
+        ]
+      }
+    ],
+    "tc_results": [
+      { "tc_id": "TC-001", "tc_name": "Login with valid credentials", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-002", "tc_name": "Login with invalid password", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-004", "tc_name": "Password reset via email", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-005", "tc_name": "OAuth login with Google", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "OAuthError: Token exchange failed - invalid client_secret in config" },
+      { "tc_id": "TC-006", "tc_name": "Session expiry after inactivity", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Session still valid after timeout period. Token invalidation not triggered on password change." }
+    ]
+  },
+  {
+    "build_id": "BUILD-002",
+    "build_number": 2,
+    "created_at": "2024-01-12T10:30:00Z",
+    "mrs": [
+      {
+        "mr_id": "MR-103",
+        "title": "Implement bulk order discount tiers",
+        "description": "Adds tiered discount logic to the discount engine. Orders above 25 units get 10% off, above 50 units get 15% off.",
+        "repo": "pricing-service",
+        "files_changed": [
+          "src/discount/engine.py",
+          "src/discount/tier_calculator.py",
+          "src/models/price_rule.py"
+        ]
+      },
+      {
+        "mr_id": "MR-104",
+        "title": "Add promo code validation endpoint",
+        "description": "New API endpoint to validate promo codes at checkout. Checks expiry, usage limits, and eligibility.",
+        "repo": "orders-service",
+        "files_changed": [
+          "src/checkout/promo_validator.py",
+          "src/api/checkout_api.py",
+          "src/models/promo_code.py"
+        ]
+      }
+    ],
+    "tc_results": [
+      { "tc_id": "TC-009", "tc_name": "Apply valid promo code at checkout", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Discount not applied. PromoValidator returning null for valid code SAVE10." },
+      { "tc_id": "TC-010", "tc_name": "Apply expired promo code", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-011", "tc_name": "Bulk order discount tier validation", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Expected 15% discount for 50 units, got 10%. Tier boundary condition off by one." },
+      { "tc_id": "TC-024", "tc_name": "Price rule: percentage discount", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-025", "tc_name": "Price rule: fixed amount discount", "status": "passed", "failure_type": null, "triaged": true, "error_message": null }
+    ]
+  },
+  {
+    "build_id": "BUILD-003",
+    "build_number": 3,
+    "created_at": "2024-01-15T14:00:00Z",
+    "mrs": [
+      {
+        "mr_id": "MR-105",
+        "title": "International card payment support",
+        "description": "Enables payment gateway to accept non-domestic cards. Adds currency conversion and country-specific flags.",
+        "repo": "payments-service",
+        "files_changed": [
+          "src/payment/gateway_client.py",
+          "src/payment/currency_converter.py",
+          "src/models/payment_method.py",
+          "config/gateway_config.py"
+        ]
+      },
+      {
+        "mr_id": "MR-106",
+        "title": "Add refund processing flow",
+        "description": "Implements full refund flow for cancelled orders. Integrates with payment gateway refund API.",
+        "repo": "payments-service",
+        "files_changed": [
+          "src/payment/refund_processor.py",
+          "src/payment/gateway_client.py",
+          "src/models/refund.py"
+        ]
+      },
+      {
+        "mr_id": "MR-107",
+        "title": "Order status state machine",
+        "description": "Replaces ad-hoc status updates with a formal state machine. Enforces valid transitions and blocks invalid ones.",
+        "repo": "orders-service",
+        "files_changed": [
+          "src/order/state_machine.py",
+          "src/order/order_service.py",
+          "src/models/order.py"
+        ]
+      }
+    ],
+    "tc_results": [
+      { "tc_id": "TC-013", "tc_name": "Payment with new credit card", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-014", "tc_name": "Payment declined - insufficient funds", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-015", "tc_name": "International card payment", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "PaymentError: Gateway rejected international card. Missing international_enabled flag in gateway_config." },
+      { "tc_id": "TC-016", "tc_name": "Refund for cancelled order", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "RefundError: gateway_client.initiate_refund() raised AttributeError - method not found in current client version." },
+      { "tc_id": "TC-028", "tc_name": "Order creation with multiple line items", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-029", "tc_name": "Order status transitions", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Transition from Confirmed to Shipped allowed without Processing step. State machine missing intermediate validation." }
+    ]
+  },
+  {
+    "build_id": "BUILD-004",
+    "build_number": 4,
+    "created_at": "2024-01-18T11:00:00Z",
+    "mrs": [
+      {
+        "mr_id": "MR-108",
+        "title": "Email notification templates redesign",
+        "description": "Updates all transactional email templates. New HTML layout, updated branding, improved mobile rendering.",
+        "repo": "notifications-service",
+        "files_changed": [
+          "src/templates/order_confirmation.html",
+          "src/templates/shipping_update.html",
+          "src/templates/password_reset.html",
+          "src/email/template_renderer.py"
+        ]
+      },
+      {
+        "mr_id": "MR-109",
+        "title": "Fix SMTP retry logic",
+        "description": "Email sends were failing silently on SMTP timeout. Adds retry with exponential backoff and dead letter queue.",
+        "repo": "notifications-service",
+        "files_changed": [
+          "src/email/smtp_client.py",
+          "src/email/retry_handler.py",
+          "src/queue/dead_letter_queue.py"
+        ]
+      }
+    ],
+    "tc_results": [
+      { "tc_id": "TC-021", "tc_name": "Order confirmation email sent", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Email not received within 2 minutes. template_renderer raising Jinja2 UndefinedError on new template." },
+      { "tc_id": "TC-022", "tc_name": "Shipping update notification", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Tracking number missing from email body. Template variable {{tracking_number}} not resolved." },
+      { "tc_id": "TC-023", "tc_name": "Password reset email deliverability", "status": "failed", "failure_type": "script", "triaged": true, "error_message": "TimeoutError: Test waited 60s for email but SMTP sandbox was unavailable in CI environment. Not a product issue." }
+    ]
+  },
+  {
+    "build_id": "BUILD-005",
+    "build_number": 5,
+    "created_at": "2024-01-20T09:30:00Z",
+    "mrs": [
+      {
+        "mr_id": "MR-110",
+        "title": "Elasticsearch product search integration",
+        "description": "Replaces SQL-based product search with Elasticsearch. Adds relevance scoring and keyword highlighting.",
+        "repo": "inventory-service",
+        "files_changed": [
+          "src/search/elasticsearch_client.py",
+          "src/search/query_builder.py",
+          "src/search/result_mapper.py",
+          "config/elasticsearch_config.py"
+        ]
+      },
+      {
+        "mr_id": "MR-111",
+        "title": "Real-time stock level updates",
+        "description": "Stock levels now updated in real-time via event stream after each order. Replaces scheduled batch sync.",
+        "repo": "inventory-service",
+        "files_changed": [
+          "src/inventory/stock_manager.py",
+          "src/events/order_event_handler.py",
+          "src/models/stock_level.py"
+        ]
+      }
+    ],
+    "tc_results": [
+      { "tc_id": "TC-017", "tc_name": "Product search by keyword", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Search returned 0 results for 'laptop'. Elasticsearch index empty - reindex not triggered after migration." },
+      { "tc_id": "TC-018", "tc_name": "Filter products by category", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Category filter not applied. query_builder missing filter clause for category field." },
+      { "tc_id": "TC-019", "tc_name": "Out of stock product display", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-020", "tc_name": "Stock level update after purchase", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Stock level not decremented after purchase. order_event_handler not receiving order.completed events." }
+    ]
+  },
+  {
+    "build_id": "BUILD-006",
+    "build_number": 6,
+    "created_at": "2024-01-23T14:00:00Z",
+    "mrs": [
+      {
+        "mr_id": "MR-112",
+        "title": "Discount engine refactor - strategy pattern",
+        "description": "Refactors discount engine to use strategy pattern. Each discount type is now a separate strategy class.",
+        "repo": "pricing-service",
+        "files_changed": [
+          "src/discount/engine.py",
+          "src/discount/strategies/percentage_strategy.py",
+          "src/discount/strategies/fixed_strategy.py",
+          "src/discount/strategies/bogo_strategy.py",
+          "src/discount/strategy_factory.py"
+        ]
+      },
+      {
+        "mr_id": "MR-113",
+        "title": "Add stacked discount conflict resolution",
+        "description": "Implements priority-based conflict resolution when multiple discount rules apply to the same order.",
+        "repo": "pricing-service",
+        "files_changed": [
+          "src/discount/conflict_resolver.py",
+          "src/discount/engine.py",
+          "src/models/price_rule.py"
+        ]
+      }
+    ],
+    "tc_results": [
+      { "tc_id": "TC-009", "tc_name": "Apply valid promo code at checkout", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-011", "tc_name": "Bulk order discount tier validation", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-024", "tc_name": "Price rule: percentage discount", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Percentage discount returning 0. strategy_factory not mapping percentage type to PercentageStrategy after refactor." },
+      { "tc_id": "TC-025", "tc_name": "Price rule: fixed amount discount", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Fixed discount not applied when order total equals minimum spend exactly. Off-by-one in eligibility check." },
+      { "tc_id": "TC-026", "tc_name": "Price rule: buy X get Y free", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: BOGO rule not triggering. bogo_strategy.apply() not registered in strategy_factory mapping." },
+      { "tc_id": "TC-027", "tc_name": "Stacked discount rules conflict resolution", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Both conflicting rules applied simultaneously. conflict_resolver priority check not implemented." }
+    ]
+  },
+  {
+    "build_id": "BUILD-007",
+    "build_number": 7,
+    "created_at": "2024-01-26T10:00:00Z",
+    "mrs": [
+      {
+        "mr_id": "MR-114",
+        "title": "Account lockout mechanism",
+        "description": "Implements brute force protection. Locks account after 5 failed login attempts and sends lockout notification.",
+        "repo": "auth-service",
+        "files_changed": [
+          "src/auth/lockout_manager.py",
+          "src/auth/login_handler.py",
+          "src/models/failed_attempt.py"
+        ]
+      },
+      {
+        "mr_id": "MR-115",
+        "title": "Guest checkout flow",
+        "description": "Allows users to complete checkout without creating an account. Guest sessions linked to email only.",
+        "repo": "orders-service",
+        "files_changed": [
+          "src/checkout/guest_checkout.py",
+          "src/api/checkout_api.py",
+          "src/models/guest_session.py"
+        ]
+      }
+    ],
+    "tc_results": [
+      { "tc_id": "TC-002", "tc_name": "Login with invalid password", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-003", "tc_name": "Account lockout after repeated failed logins", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Account not locked after 5 attempts. lockout_manager.check_threshold() using wrong counter key." },
+      { "tc_id": "TC-030", "tc_name": "Guest checkout without account", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Guest checkout redirecting to account creation page instead of proceeding. Route guard not recognising guest session." },
+      { "tc_id": "TC-012", "tc_name": "Checkout with saved payment method", "status": "failed", "failure_type": "environment", "triaged": true, "error_message": "ConnectionError: Payment sandbox unreachable during test run. Infrastructure issue confirmed by DevOps - not product defect." }
+    ]
+  },
+  {
+    "build_id": "BUILD-008",
+    "build_number": 8,
+    "created_at": "2024-01-29T13:00:00Z",
+    "mrs": [
+      {
+        "mr_id": "MR-116",
+        "title": "Payment gateway client upgrade to v3 API",
+        "description": "Upgrades the payment gateway client to use the new v3 API. Breaking changes in refund and tokenisation endpoints.",
+        "repo": "payments-service",
+        "files_changed": [
+          "src/payment/gateway_client.py",
+          "src/payment/tokeniser.py",
+          "src/payment/refund_processor.py",
+          "config/gateway_config.py"
+        ]
+      },
+      {
+        "mr_id": "MR-117",
+        "title": "Order line item validation",
+        "description": "Adds server-side validation for order line items. Checks product exists, stock available, and price matches catalogue.",
+        "repo": "orders-service",
+        "files_changed": [
+          "src/order/line_item_validator.py",
+          "src/order/order_service.py"
+        ]
+      }
+    ],
+    "tc_results": [
+      { "tc_id": "TC-013", "tc_name": "Payment with new credit card", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "PaymentError: tokeniser.create_token() returning 404. v3 API uses /tokens endpoint, client still calling /v2/tokenise." },
+      { "tc_id": "TC-014", "tc_name": "Payment declined - insufficient funds", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Declined payment raising unhandled exception instead of returning error response. v3 error format not handled." },
+      { "tc_id": "TC-015", "tc_name": "International card payment", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "PaymentError: International flag not forwarded in v3 API payload. Field renamed from international_enabled to allow_international." },
+      { "tc_id": "TC-016", "tc_name": "Refund for cancelled order", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "RefundError: refund_processor calling deprecated v2 refund endpoint. v3 endpoint is /payments/{id}/refunds." },
+      { "tc_id": "TC-028", "tc_name": "Order creation with multiple line items", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "ValidationError: line_item_validator rejecting valid products due to case-sensitive SKU comparison bug." }
+    ]
+  },
+  {
+    "build_id": "BUILD-009",
+    "build_number": 9,
+    "created_at": "2024-02-01T09:00:00Z",
+    "mrs": [
+      {
+        "mr_id": "MR-118",
+        "title": "Add push notification support",
+        "description": "Extends notifications service to send push notifications via FCM in addition to email.",
+        "repo": "notifications-service",
+        "files_changed": [
+          "src/push/fcm_client.py",
+          "src/push/notification_router.py",
+          "src/models/device_token.py",
+          "config/fcm_config.py"
+        ]
+      },
+      {
+        "mr_id": "MR-119",
+        "title": "Inventory low stock alerts",
+        "description": "Triggers notifications when stock drops below threshold. Sends alert to inventory managers via email.",
+        "repo": "inventory-service",
+        "files_changed": [
+          "src/inventory/alert_manager.py",
+          "src/inventory/stock_manager.py",
+          "src/events/stock_event_publisher.py"
+        ]
+      }
+    ],
+    "tc_results": [
+      { "tc_id": "TC-019", "tc_name": "Out of stock product display", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-020", "tc_name": "Stock level update after purchase", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-021", "tc_name": "Order confirmation email sent", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-022", "tc_name": "Shipping update notification", "status": "passed", "failure_type": null, "triaged": true, "error_message": null }
+    ]
+  },
+  {
+    "build_id": "BUILD-010",
+    "build_number": 10,
+    "created_at": "2024-02-05T11:00:00Z",
+    "mrs": [
+      {
+        "mr_id": "MR-120",
+        "title": "Discount engine: minimum spend eligibility",
+        "description": "Adds minimum spend checks to discount engine. Discounts only apply if order meets minimum spend threshold.",
+        "repo": "pricing-service",
+        "files_changed": [
+          "src/discount/engine.py",
+          "src/discount/eligibility_checker.py",
+          "src/models/price_rule.py"
+        ]
+      },
+      {
+        "mr_id": "MR-121",
+        "title": "Session manager: concurrent session control",
+        "description": "Limits users to 3 concurrent sessions. New logins beyond the limit invalidate the oldest session.",
+        "repo": "auth-service",
+        "files_changed": [
+          "src/session/manager.py",
+          "src/session/session_store.py",
+          "src/models/session.py"
+        ]
+      }
+    ],
+    "tc_results": [
+      { "tc_id": "TC-006", "tc_name": "Session expiry after inactivity", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Concurrent session limit not enforced. session_store.count_active() returning stale count after 4th login." },
+      { "tc_id": "TC-009", "tc_name": "Apply valid promo code at checkout", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-024", "tc_name": "Price rule: percentage discount", "status": "passed", "failure_type": null, "triaged": true, "error_message": null },
+      { "tc_id": "TC-025", "tc_name": "Price rule: fixed amount discount", "status": "failed", "failure_type": "product", "triaged": true, "error_message": "AssertionError: Fixed discount applied to orders below minimum spend. eligibility_checker using < instead of <= for threshold comparison." },
+      { "tc_id": "TC-027", "tc_name": "Stacked discount rules conflict resolution", "status": "passed", "failure_type": null, "triaged": true, "error_message": null }
+    ]
+  }
+]

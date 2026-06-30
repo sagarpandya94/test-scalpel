@@ -1,0 +1,272 @@
+[
+  {
+    "tc_id": "TC-001",
+    "title": "Login with valid credentials",
+    "category": "Authentication",
+    "service": "auth-service",
+    "description": "Verifies that a registered user can successfully log in using a valid email and password combination.",
+    "steps": "Navigate to login page. Enter valid email and password. Click Login button.",
+    "expected_result": "User is redirected to dashboard. Session token is created. Last login timestamp updated."
+  },
+  {
+    "tc_id": "TC-002",
+    "title": "Login with invalid password",
+    "category": "Authentication",
+    "service": "auth-service",
+    "description": "Verifies that login fails gracefully when an incorrect password is provided.",
+    "steps": "Navigate to login page. Enter valid email and wrong password. Click Login button.",
+    "expected_result": "Error message displayed. No session created. Failed attempt counter incremented."
+  },
+  {
+    "tc_id": "TC-003",
+    "title": "Account lockout after repeated failed logins",
+    "category": "Authentication",
+    "service": "auth-service",
+    "description": "Verifies account is locked after 5 consecutive failed login attempts to prevent brute force attacks.",
+    "steps": "Attempt login with wrong password 5 times consecutively.",
+    "expected_result": "Account locked after 5th attempt. Lockout email sent. Login disabled for 30 minutes."
+  },
+  {
+    "tc_id": "TC-004",
+    "title": "Password reset via email",
+    "category": "Authentication",
+    "service": "auth-service",
+    "description": "Verifies user can reset their password through the email-based reset flow.",
+    "steps": "Click Forgot Password. Enter registered email. Click reset link in email. Enter and confirm new password.",
+    "expected_result": "Password updated successfully. All existing sessions invalidated. Confirmation email sent."
+  },
+  {
+    "tc_id": "TC-005",
+    "title": "OAuth login with Google",
+    "category": "Authentication",
+    "service": "auth-service",
+    "description": "Verifies that users can authenticate using their Google account via OAuth 2.0.",
+    "steps": "Click Login with Google. Complete Google OAuth flow. Return to application.",
+    "expected_result": "User authenticated. Profile populated from Google. Session created with OAuth token."
+  },
+  {
+    "tc_id": "TC-006",
+    "title": "Session expiry after inactivity",
+    "category": "Authentication",
+    "service": "auth-service",
+    "description": "Verifies that user sessions expire correctly after the configured inactivity timeout period.",
+    "steps": "Login successfully. Remain inactive for session timeout period. Attempt any authenticated action.",
+    "expected_result": "Session invalidated. User redirected to login page. Appropriate session expired message shown."
+  },
+  {
+    "tc_id": "TC-007",
+    "title": "Add item to cart",
+    "category": "Cart",
+    "service": "orders-service",
+    "description": "Verifies that a user can add a product to their shopping cart and the cart reflects the correct item and quantity.",
+    "steps": "Browse to a product page. Select quantity. Click Add to Cart.",
+    "expected_result": "Item appears in cart. Cart item count badge updated. Cart total reflects item price."
+  },
+  {
+    "tc_id": "TC-008",
+    "title": "Remove item from cart",
+    "category": "Cart",
+    "service": "orders-service",
+    "description": "Verifies that a user can remove an item from their cart and totals update correctly.",
+    "steps": "Add item to cart. Navigate to cart. Click Remove on item.",
+    "expected_result": "Item removed from cart. Cart total recalculated. Empty cart message shown if last item."
+  },
+  {
+    "tc_id": "TC-009",
+    "title": "Apply valid promo code at checkout",
+    "category": "Checkout",
+    "service": "orders-service",
+    "description": "Verifies that entering a valid promotional code at checkout correctly reduces the order subtotal by the specified discount percentage before tax calculation.",
+    "steps": "Add items to cart. Proceed to checkout. Enter promo code SAVE10. Click Apply.",
+    "expected_result": "10% discount applied to subtotal. Promo code label shown. Savings amount displayed. Total recalculated."
+  },
+  {
+    "tc_id": "TC-010",
+    "title": "Apply expired promo code",
+    "category": "Checkout",
+    "service": "orders-service",
+    "description": "Verifies that an expired promotional code is rejected with an appropriate error message.",
+    "steps": "Proceed to checkout. Enter expired promo code. Click Apply.",
+    "expected_result": "Error message shown: Promo code has expired. No discount applied. Total unchanged."
+  },
+  {
+    "tc_id": "TC-011",
+    "title": "Bulk order discount tier validation",
+    "category": "Checkout",
+    "service": "orders-service",
+    "description": "Verifies that bulk order discount tiers are correctly applied when order quantity meets the threshold.",
+    "steps": "Add 50 units of a product. Proceed to checkout. Review order summary.",
+    "expected_result": "Bulk discount tier 2 applied (15% off). Discount clearly labelled. Unit price updated."
+  },
+  {
+    "tc_id": "TC-012",
+    "title": "Checkout with saved payment method",
+    "category": "Checkout",
+    "service": "payments-service",
+    "description": "Verifies that a user can complete checkout using a previously saved payment method.",
+    "steps": "Add items to cart. Proceed to checkout. Select saved Visa ending 4242. Place order.",
+    "expected_result": "Payment processed successfully. Order confirmed. Confirmation email triggered."
+  },
+  {
+    "tc_id": "TC-013",
+    "title": "Payment with new credit card",
+    "category": "Payments",
+    "service": "payments-service",
+    "description": "Verifies end-to-end payment flow with a new credit card including tokenisation and charge.",
+    "steps": "Proceed to checkout. Enter new card details. Click Pay Now.",
+    "expected_result": "Card tokenised. Payment authorised. Order created. Receipt emailed to user."
+  },
+  {
+    "tc_id": "TC-014",
+    "title": "Payment declined - insufficient funds",
+    "category": "Payments",
+    "service": "payments-service",
+    "description": "Verifies correct handling when a payment is declined due to insufficient funds.",
+    "steps": "Proceed to checkout. Enter card with insufficient funds. Click Pay Now.",
+    "expected_result": "Payment declined error displayed. Order not created. User prompted to use different payment method."
+  },
+  {
+    "tc_id": "TC-015",
+    "title": "International card payment",
+    "category": "Payments",
+    "service": "payments-service",
+    "description": "Verifies that cards issued outside the home country are accepted and currency conversion applied correctly.",
+    "steps": "Proceed to checkout. Enter non-domestic card. Complete payment.",
+    "expected_result": "Payment accepted. Currency converted at current rate. Conversion fee applied if applicable."
+  },
+  {
+    "tc_id": "TC-016",
+    "title": "Refund for cancelled order",
+    "category": "Payments",
+    "service": "payments-service",
+    "description": "Verifies that cancelling an order within the cancellation window triggers a full refund to the original payment method.",
+    "steps": "Place order. Navigate to order history. Click Cancel Order within 1 hour.",
+    "expected_result": "Order cancelled. Refund initiated. Refund confirmation email sent. Refund appears in payment history."
+  },
+  {
+    "tc_id": "TC-017",
+    "title": "Product search by keyword",
+    "category": "Search",
+    "service": "inventory-service",
+    "description": "Verifies that searching by keyword returns relevant products ranked by relevance score.",
+    "steps": "Enter keyword in search bar. Press Enter.",
+    "expected_result": "Relevant products displayed. Results sorted by relevance. Search term highlighted in results."
+  },
+  {
+    "tc_id": "TC-018",
+    "title": "Filter products by category",
+    "category": "Search",
+    "service": "inventory-service",
+    "description": "Verifies that applying a category filter correctly narrows search results to the selected category.",
+    "steps": "Perform a search. Apply category filter. Review results.",
+    "expected_result": "Only products in selected category shown. Filter chip displayed. Result count updated."
+  },
+  {
+    "tc_id": "TC-019",
+    "title": "Out of stock product display",
+    "category": "Inventory",
+    "service": "inventory-service",
+    "description": "Verifies that out of stock products are correctly flagged and the Add to Cart button is disabled.",
+    "steps": "Navigate to a product with 0 stock.",
+    "expected_result": "Out of Stock badge displayed. Add to Cart button disabled. Notify Me option visible."
+  },
+  {
+    "tc_id": "TC-020",
+    "title": "Stock level update after purchase",
+    "category": "Inventory",
+    "service": "inventory-service",
+    "description": "Verifies that inventory stock levels are decremented correctly after a successful order is placed.",
+    "steps": "Note current stock level. Complete purchase of N units. Check stock level.",
+    "expected_result": "Stock level reduced by N. If stock reaches 0, product marked as out of stock."
+  },
+  {
+    "tc_id": "TC-021",
+    "title": "Order confirmation email sent",
+    "category": "Notifications",
+    "service": "notifications-service",
+    "description": "Verifies that an order confirmation email is sent to the customer immediately after order placement.",
+    "steps": "Complete a purchase. Check email inbox.",
+    "expected_result": "Confirmation email received within 2 minutes. Contains order ID, item list, total, and delivery estimate."
+  },
+  {
+    "tc_id": "TC-022",
+    "title": "Shipping update notification",
+    "category": "Notifications",
+    "service": "notifications-service",
+    "description": "Verifies that a shipping notification is sent when order status changes to Shipped.",
+    "steps": "Place order. Admin marks order as shipped. Check customer email.",
+    "expected_result": "Shipping notification email received. Tracking number included. Estimated delivery date shown."
+  },
+  {
+    "tc_id": "TC-023",
+    "title": "Password reset email deliverability",
+    "category": "Notifications",
+    "service": "notifications-service",
+    "description": "Verifies that password reset emails are delivered reliably and the reset link is valid.",
+    "steps": "Request password reset. Check email. Click reset link.",
+    "expected_result": "Email delivered within 60 seconds. Reset link valid for 24 hours. Single-use only."
+  },
+  {
+    "tc_id": "TC-024",
+    "title": "Price rule: percentage discount",
+    "category": "Pricing",
+    "service": "pricing-service",
+    "description": "Verifies that percentage-based discount price rules are calculated correctly on the final order total.",
+    "steps": "Create order with items totalling $100. Apply 20% discount rule.",
+    "expected_result": "Discount of $20 applied. Final total $80 before tax. Rule audit log entry created."
+  },
+  {
+    "tc_id": "TC-025",
+    "title": "Price rule: fixed amount discount",
+    "category": "Pricing",
+    "service": "pricing-service",
+    "description": "Verifies that fixed-amount discount rules deduct the correct dollar amount from the order total.",
+    "steps": "Create order over minimum spend threshold. Apply fixed $15 discount rule.",
+    "expected_result": "Exactly $15 deducted from total. Rule not applied if order below minimum spend."
+  },
+  {
+    "tc_id": "TC-026",
+    "title": "Price rule: buy X get Y free",
+    "category": "Pricing",
+    "service": "pricing-service",
+    "description": "Verifies that buy-X-get-Y-free promotional pricing rules are applied correctly in the cart.",
+    "steps": "Add 3 qualifying items to cart. Proceed to checkout.",
+    "expected_result": "Cheapest qualifying item priced at $0. Rule label shown in cart. Total reflects free item."
+  },
+  {
+    "tc_id": "TC-027",
+    "title": "Stacked discount rules conflict resolution",
+    "category": "Pricing",
+    "service": "pricing-service",
+    "description": "Verifies that when multiple discount rules apply, the system correctly resolves conflicts based on priority order.",
+    "steps": "Apply two conflicting discount rules to same order.",
+    "expected_result": "Higher priority rule applied. Lower priority rule skipped. Conflict logged."
+  },
+  {
+    "tc_id": "TC-028",
+    "title": "Order creation with multiple line items",
+    "category": "Orders",
+    "service": "orders-service",
+    "description": "Verifies that an order with multiple distinct products and quantities is created correctly with accurate line item totals.",
+    "steps": "Add 3 different products with different quantities. Complete checkout.",
+    "expected_result": "Order created with all line items. Per-item and total pricing accurate. Order ID generated."
+  },
+  {
+    "tc_id": "TC-029",
+    "title": "Order status transitions",
+    "category": "Orders",
+    "service": "orders-service",
+    "description": "Verifies that orders transition through valid states: Pending > Confirmed > Processing > Shipped > Delivered.",
+    "steps": "Place order. Trigger each status transition via admin panel.",
+    "expected_result": "Each transition succeeds. Invalid transitions blocked. Timestamps recorded per transition."
+  },
+  {
+    "tc_id": "TC-030",
+    "title": "Guest checkout without account",
+    "category": "Checkout",
+    "service": "orders-service",
+    "description": "Verifies that a user without an account can complete a purchase as a guest.",
+    "steps": "Add items to cart. Proceed to checkout. Select Guest Checkout. Enter email and payment.",
+    "expected_result": "Order placed successfully. Confirmation sent to guest email. No account created."
+  }
+]
