@@ -56,9 +56,9 @@ def main():
     from src.chunking import build_to_text
     for build in builds[:3]:
         print()
-        print(f"  {'─' * 50}")
+        print(f"  {'-' * 50}")
         print(f"  {build_to_text(build)}")
-    print(f"  {'─' * 50}")
+    print(f"  {'-' * 50}")
 
     # --- Index ---
     print()

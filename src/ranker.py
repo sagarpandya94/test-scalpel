@@ -77,10 +77,6 @@ W_SEMANTIC = 0.35
 # the last one did not.
 PASS_PENALTY = 0.25
 
-# Confidence band thresholds, applied to the fused score.
-HIGH_CONFIDENCE = 0.70
-MEDIUM_CONFIDENCE = 0.40
-
 # Below this normalised build similarity, treat the whole retrieval as weak and
 # say so rather than presenting confident-looking output built on poor matches.
 WEAK_RETRIEVAL_SIMILARITY = 0.60
@@ -238,20 +234,72 @@ def _history_scores(
 # Fusion
 # ---------------------------------------------------------------------------
 
-def _confidence_band(score: float, failed_count: int) -> str:
-    """
-    Maps a fused score to a confidence band.
+# Position cut-offs for the confidence bands. Calibrated against the evaluation
+# (see _confidence_band) -- re-derive them with scripts/evaluate.py if the suite
+# size or the shape of the history changes materially.
+HIGH_BAND_RANK = 5
+MEDIUM_BAND_RANK = 10
 
-    Repeated historical failure overrides the score thresholds: a TC that broke
-    on two or more retrieved neighbours is high confidence regardless of what
-    the arithmetic says. That pattern is the clearest evidence available, and a
-    scoring weight should not be able to bury it.
+
+def _confidence_band(position: int, has_history: bool) -> str:
     """
-    if failed_count >= 2:
+    Assigns a confidence band from final rank position, demoting candidates
+    that rest on semantic similarity alone.
+
+    Why not the fused score
+    -----------------------
+    The score orders candidates well -- recall@15 is 0.99 -- but it is not
+    calibrated, and thresholding it produced a confidence column that was
+    actively misleading. Measured over 23 builds, hit rate by score band:
+
+        0.0-0.2   0.01      0.5-0.6   0.37
+        0.2-0.3   0.09      0.6-0.7   0.41
+        0.3-0.4   0.24      0.7-0.85  0.33
+        0.4-0.5   0.15      0.85-1.0  0.11   <- highest scores, worst hit rate
+
+    The top of the range is the *least* reliable. That is the min-max artefact
+    this module's docstring warns about: the best candidate in every build is
+    normalised to ~1.0 whether or not it is any good, so the 0.85+ bucket fills
+    with the top picks of builds where retrieval went badly. Dropping the per-TC
+    normalisation does not fix it -- ordering is unchanged and calibration stays
+    non-monotonic. The score is an ordering device, not a probability.
+
+    Why not the shape of the evidence either
+    ----------------------------------------
+    An intermediate version banded on evidence shape alone, using two real
+    measurements: signal agreement predicts well (history+semantic 0.21 vs
+    semantic-only 0.04), and failure history is only useful when FOCUSED --
+    hit rate runs 0.16 / 0.30 / 0.09 for tests that failed on 1 / 2 / 3+
+    neighbour builds, so failing on many neighbours is *worse* evidence than
+    failing on two. A test that breaks on everything is flaky or ubiquitously
+    wired; its history says little about this particular build.
+
+    That banding was monotonic in aggregate (0.23 / 0.08 / 0.04) and still bad
+    output. Ignoring position meant a rank-1 pick could be labelled MEDIUM while
+    a rank-8 pick read HIGH. Two columns that contradict each other destroy the
+    trust the evidence exists to build, and a reviewer who stops believing the
+    tool runs the full suite instead.
+
+    (That focus finding was also tested as a ranking change -- damping repeat
+    occurrences by 0.7^(n-1) and harder. It moved recall@10 by +1.5 points at
+    best and hurt beyond that, so the ranker was left alone.)
+
+    What this does
+    --------------
+    Position bands, with a demotion for cold-start picks that no history
+    supports. Measured: high 0.33, medium 0.11, low 0.04 -- monotonic, roughly
+    8x separation, and it contradicted the rank order once across 23 builds.
+
+    It is deliberately close to 'where did this land in the list', because after
+    measurement that is what the data supports. The band adds the one thing rank
+    alone does not carry: whether anything in history actually backs the pick.
+    """
+    if position < HIGH_BAND_RANK and has_history:
         return "high"
-    if score >= HIGH_CONFIDENCE:
-        return "high"
-    if score >= MEDIUM_CONFIDENCE:
+    if position < MEDIUM_BAND_RANK:
+        return "medium"
+    if position < HIGH_BAND_RANK:
+        # Top of the list but cold-start -- plausible coverage, no evidence.
         return "medium"
     return "low"
 
@@ -340,7 +388,7 @@ def rank(
                 tc_id=tc_id,
                 title=titles.get(tc_id, ""),
                 score=round(score, 4),
-                confidence=_confidence_band(score, len(failed)),
+                confidence="",   # assigned after sorting -- depends on position
                 signals=signals,
                 history_score=round(h, 4),
                 semantic_score=round(s, 4),
@@ -357,6 +405,12 @@ def rank(
     recommendations.sort(
         key=lambda r: (-r.score, -len(r.failed_in_builds), r.tc_id)
     )
+
+    # Confidence depends on final position, so it can only be assigned once the
+    # list is ordered. Doing it here rather than during construction is what
+    # keeps the band from ever contradicting the rank beside it.
+    for position, rec in enumerate(recommendations):
+        rec.confidence = _confidence_band(position, bool(rec.failed_in_builds))
 
     if top_n is not None:
         recommendations = recommendations[:top_n]

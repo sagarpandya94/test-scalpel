@@ -55,9 +55,9 @@ def main():
     from src.chunking import test_case_to_text
     for tc in test_cases[:3]:
         print()
-        print(f"  {'─' * 50}")
+        print(f"  {'-' * 50}")
         print(f"  {test_case_to_text(tc)}")
-    print(f"  {'─' * 50}")
+    print(f"  {'-' * 50}")
 
     # --- Index ---
     print()

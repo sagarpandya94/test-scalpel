@@ -103,7 +103,7 @@ def parse_args():
     parser.add_argument("--test-cases", default=TCS_DEFAULT)
     parser.add_argument("--k", type=int, nargs="+", default=[5, 10, 15],
                         help="Cut-offs to evaluate recall/precision at")
-    parser.add_argument("--builds-k", type=int, default=5, help="Neighbours to retrieve per query")
+    parser.add_argument("--builds-k", type=int, default=8, help="Neighbours to retrieve per query")
     parser.add_argument("--tc-k", type=int, default=30, help="Test cases to retrieve semantically")
     parser.add_argument("--verbose", action="store_true", help="Per-build breakdown including misses")
     parser.add_argument("--json", action="store_true", dest="as_json")
@@ -121,6 +121,17 @@ def main():
     tc_by_service: dict[str, list[str]] = {}
     for tc in test_cases:
         tc_by_service.setdefault(tc.service, []).append(tc.tc_id)
+
+    service_of: dict[str, str] = {tc.tc_id: tc.service for tc in test_cases}
+
+    # How often each TC failed across the whole history. Used only to report
+    # how thin the history signal is -- a suite where everything failed once
+    # cannot support frequency-based ranking, and the caveat should say so
+    # with the real number rather than a remembered one.
+    tc_failure_counts: dict[str, int] = {}
+    for b in builds:
+        for tc in b.product_failures:
+            tc_failure_counts[tc.tc_id] = tc_failure_counts.get(tc.tc_id, 0) + 1
 
     evaluable = [b for b in builds if b.product_failures]
     skipped = len(builds) - len(evaluable)
@@ -150,9 +161,16 @@ def main():
 
         service_pick = same_service_baseline(build, tc_by_service)
 
+        # A failure is 'cross-service' when the test belongs to a service this
+        # build never touched. Those are the ones no folder-based rule can
+        # reach, so they are scored separately below.
+        touched = set(build.all_repos)
+        cross = {tc for tc in actual if service_of.get(tc) not in touched}
+
         record = {
             "build_id": build.build_id,
             "actual_failures": sorted(actual),
+            "cross_service_failures": sorted(cross),
             "neighbours": ranked.neighbour_build_ids,
             "scalpel": {},
             "random": {},
@@ -173,6 +191,20 @@ def main():
             record["random"][k] = {
                 "recall": random_baseline_recall(all_tc_ids, actual, k, rng)
             }
+
+        # Per-failure hit/miss, so the cross vs same split can be aggregated
+        # over individual failures rather than averaged over builds. Averaging
+        # per build would let a build with one cross-service failure outweigh a
+        # build with four.
+        record["hits"] = [
+            {
+                "tc_id": tc,
+                "cross_service": tc in cross,
+                "scalpel_hit": {k: tc in ordered[:k] for k in args.k},
+                "baseline_hit": tc in set(service_pick),
+            }
+            for tc in sorted(actual)
+        ]
 
         per_build.append(record)
 
@@ -196,6 +228,31 @@ def main():
             "perfect_builds": sum(1 for r in per_build if r["scalpel"][k]["recall"] == 1.0),
             "suite_fraction": min(k, len(all_tc_ids)) / len(all_tc_ids),
         }
+
+    # Cross vs same split, counted per failure across every build.
+    best_k = max(args.k)
+    all_hits = [h for r in per_build for h in r["hits"]]
+    cross_hits = [h for h in all_hits if h["cross_service"]]
+    same_hits = [h for h in all_hits if not h["cross_service"]]
+
+    def _scalpel_rate(hits, k):
+        if not hits:
+            return float("nan")
+        return sum(1 for h in hits if h["scalpel_hit"][k]) / len(hits)
+
+    def _baseline_rate(hits):
+        if not hits:
+            return float("nan")
+        return sum(1 for h in hits if h["baseline_hit"]) / len(hits)
+
+    summary["split"] = {
+        "cross_total": len(cross_hits),
+        "same_total": len(same_hits),
+        "cross_baseline": _baseline_rate(cross_hits),
+        "same_baseline": _baseline_rate(same_hits),
+        "cross_scalpel": {k: _scalpel_rate(cross_hits, k) for k in args.k},
+        "same_scalpel": {k: _scalpel_rate(same_hits, k) for k in args.k},
+    }
 
     summary["same_service"] = {
         "recall": sum(r["same_service"]["recall"] for r in per_build) / len(per_build),
@@ -264,10 +321,49 @@ def main():
               f"vs Test-Scalpel's {s['scalpel_recall']:.2f}.")
         print("  On this dataset the embedding machinery is not yet earning its keep.")
 
+    # --- The split that decides whether retrieval is worth its cost ---------
+    #
+    # Aggregate recall hides the only comparison that matters. A same-service
+    # failure is catchable by grepping a folder name; a cross-service one is
+    # not, and it is the entire reason this project embeds anything. Reporting
+    # them separately is what stops a good aggregate number from concealing
+    # total failure on the hard half.
+    split = summary["split"]
+    if split["cross_total"]:
+        k_cols = "".join(f"{'k=' + str(k):>8}" for k in args.k)
+        print()
+        print("CROSS-SERVICE vs SAME-SERVICE FAILURES  (recall, counted per failure)")
+        print("  " + "-" * 70)
+        print(f"  {'FAILURE TYPE':<31} {'COUNT':>6} {'SAME-SVC':>10}{k_cols}")
+        print("  " + "-" * 70)
+        print(
+            f"  {'Same-service (folder-findable)':<31} {split['same_total']:>6} "
+            f"{split['same_baseline']:>10.2f}"
+            + "".join(f"{split['same_scalpel'][k]:>8.2f}" for k in args.k)
+        )
+        print(
+            f"  {'Cross-service (needs retrieval)':<31} {split['cross_total']:>6} "
+            f"{split['cross_baseline']:>10.2f}"
+            + "".join(f"{split['cross_scalpel'][k]:>8.2f}" for k in args.k)
+        )
+        print("  " + "-" * 70)
+        print()
+        print(f"  The naive baseline catches {split['cross_baseline'] * 100:.0f}% of cross-service failures. It cannot do")
+        print("  better: a test owned by a service the build never touched is outside the set")
+        print("  it considers at all. Test-Scalpel reaches "
+              f"{split['cross_scalpel'][best_k] * 100:.0f}% at k={best_k}.")
+        print()
+        print("  That column is the whole argument for the vector store. On same-service")
+        print("  failures both approaches saturate, and the embeddings are an expensive way")
+        print("  to reach a result folder-based tagging already gives you for free.")
+
     print()
-    print("  Caveat: 10 builds and 21 distinct failing test cases is a small sample, and")
-    print("  most test cases failed exactly once, so the history signal is thin by")
-    print("  construction. Treat these numbers as directional, not as a measurement.")
+    n_failing_tcs = len({tc for r in per_build for tc in r["actual_failures"]})
+    once = sum(1 for tc, c in tc_failure_counts.items() if c == 1)
+    print(f"  Caveat: {len(builds)} builds and {n_failing_tcs} distinct failing test cases is a")
+    print(f"  small sample, and {once} of those failed exactly once, so the history signal is")
+    print("  thin by construction. Treat these numbers as directional, not as a measurement.")
+    print("  The data is synthetic -- see data/README.md for what was put in on purpose.")
     print("=" * 74)
 
 

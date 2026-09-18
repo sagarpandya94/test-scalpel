@@ -46,7 +46,7 @@ def parse_args():
         description="Recommend which test cases to run for an incoming build."
     )
     parser.add_argument("--data", default=DATA_DEFAULT, help="Path to the incoming build JSON")
-    parser.add_argument("--builds-k", type=int, default=5, help="How many similar builds to retrieve")
+    parser.add_argument("--builds-k", type=int, default=8, help="How many similar builds to retrieve")
     parser.add_argument("--tc-k", type=int, default=15, help="How many test cases to retrieve semantically")
     parser.add_argument("--top", type=int, default=12, help="How many recommendations to show")
     parser.add_argument("--min-score", type=float, default=0.0, help="Drop recommendations below this score")

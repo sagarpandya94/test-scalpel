@@ -162,27 +162,126 @@ python scripts/evaluate.py --verbose   # per-build breakdown, including misses
 
 ## Current Results
 
-Leave-one-out over the 10 indexed builds, each build excluded from its own retrieval:
+Leave-one-out over 24 indexed builds, each excluded from its own retrieval.
+`builds_k=8` neighbours, ranked, cut at k.
 
-| Selection | Suite run | Recall | Precision |
-|---|---|---|---|
-| Test-Scalpel k=5 | 17% | 0.56 | 0.29 |
-| Test-Scalpel k=10 | 33% | 0.92 | 0.24 |
-| Test-Scalpel k=15 | 50% | 0.98 | 0.18 |
-| Random k=10 | 33% | 0.33 | — |
-| **Same-service (naive)** | **29%** | **1.00** | **0.43** |
+| Selection | Suite run | Recall | Precision | Builds fully covered |
+|---|---|---|---|---|
+| Test-Scalpel k=5 | 17% | 0.71 | 0.33 | 9/23 |
+| Test-Scalpel k=7 | 23% | 0.77 | 0.26 | 12/23 |
+| Test-Scalpel k=10 | 33% | 0.92 | 0.22 | 19/23 |
+| Test-Scalpel k=15 | 50% | 0.99 | 0.16 | 22/23 |
+| Random k=10 | 33% | 0.33 | - | - |
+| Same-service (naive) | 22% | 0.76 | 0.33 | - |
 
-Comfortably above random — but **the naive same-service baseline currently beats it**,
-and that result is an artifact of the sample data rather than a verdict on the approach.
+### The split that actually matters
 
-The synthetic dataset contains **zero cross-service failures**: every one of its 25 product
-failures belongs to a service the build directly touched. Under that condition "run every
-test owned by a touched service" achieves perfect recall by construction, and no retrieval
-system can do better than tie it.
+Aggregate recall hides the only comparison worth making. Counted per failure:
 
-Cross-service coupling is precisely what RAG exists to catch and what folder-based tagging
-cannot. Until the dataset contains some, this benchmark cannot demonstrate the difference.
-Fixing that is the first task of Phase 3.
+| Failure type | Count | Naive baseline | k=5 | k=10 | k=15 |
+|---|---|---|---|---|---|
+| Same-service (folder-findable) | 42 | 1.00 | 0.76 | 0.95 | 1.00 |
+| **Cross-service (needs retrieval)** | **15** | **0.00** | **0.40** | **0.73** | **0.93** |
+
+On same-service failures both approaches saturate - embeddings are an expensive
+way to reach a result folder-based tagging gives you for free. The cross-service
+row is the entire argument for the vector store. The naive baseline scores 0.00
+there and structurally cannot do better: a test owned by a service the build
+never touched is outside the set it considers at all.
+
+### Retrieval depth is the biggest lever
+
+Sweeping neighbour count `builds_k` moves cross-service recall far more than any
+ranking change tested:
+
+| `builds_k` | Reachable ceiling | Cross-service recall@15 |
+|---|---|---|
+| 3 | 0.67 | 0.80 |
+| 5 | 0.73 | 0.80 |
+| **8** | **0.93** | **0.93** |
+| 12 | 1.00 | 0.87 |
+
+"Reachable ceiling" is the fraction of cross-service failures appearing in *any*
+retrieved neighbour - the best score achievable regardless of ranking quality. It
+rises monotonically with depth, but measured recall does not. At `builds_k=12`
+every coupling is technically reachable and the score still falls, because the
+extra neighbours contribute more unrelated failures than real ones. More
+retrieval is not more signal. The default is 8; re-run the sweep as history grows.
+
+### How close to the ceiling is 0.93?
+
+Of the 15 cross-service failures, 4 come from couplings occurring exactly once in
+the dataset, with no prior occurrence to learn from. Those are reachable only if
+the semantic index happens to surface them. 0.93 means the system is recovering
+nearly everything the data makes recoverable.
+
+### What was measured and rejected
+
+Five fusion strategies were compared on identical cached retrieval results. The
+hypothesis going in was that a weighted sum penalises cross-service tests, since
+they carry history evidence but no semantic evidence, and a sum treats absent
+evidence as negative. **That hypothesis was wrong.** Evidence-normalisation, the
+direct fix for it, was the worst variant tested - it inflates weak history-only
+candidates and crowds out genuinely relevant ones:
+
+| Fusion | k=10 overall | k=10 cross-service |
+|---|---|---|
+| weighted sum (current) | 0.928 | 0.67 |
+| noisy-or | 0.942 | 0.73 |
+| max | 0.913 | 0.60 |
+| weighted + agreement bonus | 0.928 | 0.67 |
+| evidence-normalised | 0.796 | 0.47 |
+
+noisy-or edges the weighted sum, but by a single caught failure out of 15 -
+inside the noise of a 24-build sample. The fusion was left unchanged rather than
+tuned to a difference this dataset cannot resolve. Depth was changed instead,
+because that effect was large enough to be real.
+
+### The confidence column was wrong, and the fix was not the obvious one
+
+Thresholding the fused score into high/medium/low produced a band that was
+**inverted** - `medium` picks hit more often than `high` ones. Hit rate by score:
+
+| Score | Hit rate | | Score | Hit rate |
+|---|---|---|---|---|
+| 0.0-0.2 | 0.01 | | 0.5-0.6 | 0.37 |
+| 0.2-0.3 | 0.09 | | 0.6-0.7 | 0.41 |
+| 0.3-0.4 | 0.24 | | 0.7-0.85 | 0.33 |
+| 0.4-0.5 | 0.15 | | **0.85-1.0** | **0.11** |
+
+The highest scores are the least reliable. That is the min-max artefact: the top
+candidate of every build normalises to ~1.0 whether or not it is any good, so the
+0.85+ bucket fills with the top picks of builds where retrieval went badly.
+Dropping the normalisation does not help - ordering is identical and calibration
+stays non-monotonic.
+
+Banding on evidence shape instead surfaced a genuinely surprising result. Failure
+history is only useful when **focused**:
+
+| Failed on | Hit rate |
+|---|---|
+| 1 neighbour build | 0.16 |
+| 2 neighbour builds | 0.30 |
+| **3+ neighbour builds** | **0.09** |
+
+Failing on many neighbours is *worse* evidence than failing on two - a test that
+breaks on everything is flaky or ubiquitously wired, and its history says little
+about any particular build. This contradicts the "repetition is the strongest
+signal" assumption the ranker was built on.
+
+That finding did **not** translate into a ranking improvement: damping repeat
+occurrences by `0.7^(n-1)` moved recall@10 by +1.5 points and harder damping hurt,
+so the ranker was left alone. And banding on evidence shape alone, though
+monotonic in aggregate (0.23 / 0.08 / 0.04), produced incoherent output - a rank-1
+pick labelled MEDIUM beside a rank-8 pick labelled HIGH. Two columns that
+contradict each other destroy the trust the evidence column exists to build.
+
+The shipped banding uses rank position with a demotion for cold-start picks:
+**0.33 / 0.11 / 0.04**, monotonic, 8x separation, and it contradicted the rank
+order once across 23 builds.
+
+> All numbers come from synthetic data. See `data/README.md` for what was put in
+> on purpose and what was deliberately left unlearnable.
 
 ---
 
@@ -201,11 +300,16 @@ Fixing that is the first task of Phase 3.
 - Confidence bands and per-recommendation evidence
 - Full-regression cadence and release gate implemented
 - Leave-one-out evaluation against random and same-service baselines
+- Dataset extended to 24 builds with cross-service coupling, so the benchmark
+  can distinguish retrieval from folder-based tagging (see `data/README.md`)
+- Cross-service vs same-service recall reported separately
 
 ### 🔲 Phase 3 — Feedback Loop *(next)*
-- SDET feedback on suggestions (thumbs up/down per TC)
-- LLM-based auto-classification of failure types
-- Recency weighting for older builds
+- SDET feedback on suggestions (thumbs up/down per TC), fed back as a ranking prior
+- LLM-based auto-classification of `failure_type` from `error_message`
+  (the field is already captured at ingestion for exactly this)
+- Recency weighting — an 8-month-old coupling should not count as much as
+  last week's, and nothing currently decays
 
 ---
 
