@@ -85,15 +85,21 @@ This maintains data coverage across the full test suite while still dramatically
 test-scalpel/
 ├── data/
 │   ├── sample_builds.json          # Synthetic build history (10 builds, 6 microservices)
-│   └── sample_test_cases.json      # Synthetic TestRail test cases (30 cases)
+│   ├── sample_test_cases.json      # Synthetic TestRail test cases (30 cases)
+│   └── sample_new_build.json       # An un-run build to generate recommendations for
 ├── src/
 │   ├── schemas.py                  # BuildDocument, MRRecord, TCResult, TestCaseDocument
-│   ├── chunking.py                 # Text construction for embedding
+│   ├── chunking.py                 # Text construction — index side and query side
 │   ├── embedder.py                 # OpenAI embeddings wrapper
-│   └── indexer.py                  # Chroma vector store indexing
+│   ├── indexer.py                  # Chroma vector store indexing
+│   ├── retriever.py                # Queries both indexes for an incoming build
+│   ├── ranker.py                   # Fuses both signals into a ranked list
+│   └── policy.py                   # Full-regression cadence and release gate
 ├── scripts/
 │   ├── ingest_builds.py            # CLI: ingest build history
-│   └── ingest_test_cases.py        # CLI: ingest TestRail test cases
+│   ├── ingest_test_cases.py        # CLI: ingest TestRail test cases
+│   ├── recommend.py                # CLI: which tests to run for a new build
+│   └── evaluate.py                 # CLI: leave-one-out recall vs baselines
 ├── vector_store/                   # Chroma persisted indexes (gitignored)
 ├── .env.example
 ├── requirements.txt
@@ -138,6 +144,46 @@ python scripts/ingest_builds.py --reset    # first time (full backfill)
 python scripts/ingest_builds.py            # subsequent runs (incremental)
 ```
 
+### 6. Get recommendations for a new build
+```bash
+python scripts/recommend.py                            # human-readable report
+python scripts/recommend.py --json                     # for CI consumption
+python scripts/recommend.py --release                  # forces full regression
+python scripts/recommend.py --data path/to/build.json
+```
+
+### 7. Evaluate the selector
+```bash
+python scripts/evaluate.py             # recall vs random and same-service baselines
+python scripts/evaluate.py --verbose   # per-build breakdown, including misses
+```
+
+---
+
+## Current Results
+
+Leave-one-out over the 10 indexed builds, each build excluded from its own retrieval:
+
+| Selection | Suite run | Recall | Precision |
+|---|---|---|---|
+| Test-Scalpel k=5 | 17% | 0.56 | 0.29 |
+| Test-Scalpel k=10 | 33% | 0.92 | 0.24 |
+| Test-Scalpel k=15 | 50% | 0.98 | 0.18 |
+| Random k=10 | 33% | 0.33 | — |
+| **Same-service (naive)** | **29%** | **1.00** | **0.43** |
+
+Comfortably above random — but **the naive same-service baseline currently beats it**,
+and that result is an artifact of the sample data rather than a verdict on the approach.
+
+The synthetic dataset contains **zero cross-service failures**: every one of its 25 product
+failures belongs to a service the build directly touched. Under that condition "run every
+test owned by a touched service" achieves perfect recall by construction, and no retrieval
+system can do better than tie it.
+
+Cross-service coupling is precisely what RAG exists to catch and what folder-based tagging
+cannot. Until the dataset contains some, this benchmark cannot demonstrate the difference.
+Fixing that is the first task of Phase 3.
+
 ---
 
 ## Phases
@@ -148,12 +194,15 @@ python scripts/ingest_builds.py            # subsequent runs (incremental)
 - Two Chroma vector indexes (build history + test cases)
 - Triage-gated ingestion pipeline
 
-### 🔲 Phase 2 — Retrieval & Ranking *(next)*
-- Given a new build's file list, query both indexes
-- Aggregate and rank test case recommendations by historical failure frequency
-- Confidence scoring alongside suggestions
+### ✅ Phase 2 — Retrieval & Ranking *(complete)*
+- Asymmetric query construction — an incoming build has no results to embed
+- Dual retrieval: file paths → build history, MR prose → test case index
+- Signal fusion with per-signal normalisation and a pass penalty
+- Confidence bands and per-recommendation evidence
+- Full-regression cadence and release gate implemented
+- Leave-one-out evaluation against random and same-service baselines
 
-### 🔲 Phase 3 — Feedback Loop
+### 🔲 Phase 3 — Feedback Loop *(next)*
 - SDET feedback on suggestions (thumbs up/down per TC)
 - LLM-based auto-classification of failure types
 - Recency weighting for older builds
