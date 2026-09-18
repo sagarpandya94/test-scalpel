@@ -67,6 +67,14 @@
         "failure_type": "product",
         "triaged": true,
         "error_message": "AssertionError: Session still valid after timeout period. Token invalidation not triggered on password change."
+      },
+      {
+        "tc_id": "TC-003",
+        "tc_name": "Account lockout after repeated failed logins",
+        "status": "failed",
+        "failure_type": "script",
+        "triaged": true,
+        "error_message": "SeleniumTimeoutException: element #lockout-warning not found after 30s. Locator not updated following the login page redesign."
       }
     ]
   },
@@ -138,6 +146,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-012",
+        "tc_name": "Checkout with saved payment method",
+        "status": "failed",
+        "failure_type": "environment",
+        "triaged": true,
+        "error_message": "ConnectionRefusedError: payments-gateway-stub:8080 unreachable. Stub container never passed its health check."
       }
     ]
   },
@@ -229,6 +245,14 @@
         "failure_type": "product",
         "triaged": true,
         "error_message": "AssertionError: Transition from Confirmed to Shipped allowed without Processing step. State machine missing intermediate validation."
+      },
+      {
+        "tc_id": "TC-012",
+        "tc_name": "Checkout with saved payment method",
+        "status": "failed",
+        "failure_type": "script",
+        "triaged": true,
+        "error_message": "AssertionError: expected 'Success' got 'success'. Test compares status case-sensitively; the API has always returned lowercase."
       }
     ]
   },
@@ -349,6 +373,22 @@
         "failure_type": "product",
         "triaged": true,
         "error_message": "AssertionError: Stock level not decremented after purchase. order_event_handler not receiving order.completed events."
+      },
+      {
+        "tc_id": "TC-007",
+        "tc_name": "Add item to cart",
+        "status": "failed",
+        "failure_type": "script",
+        "triaged": true,
+        "error_message": "StaleElementReferenceException: cart badge re-rendered between find_element and click. Test has no explicit wait."
+      },
+      {
+        "tc_id": "TC-013",
+        "tc_name": "Payment with new credit card",
+        "status": "failed",
+        "failure_type": "environment",
+        "triaged": true,
+        "error_message": "OperationalError: FATAL: too many connections for role 'ci_user'. Postgres pool exhausted on the shared runner."
       }
     ]
   },
@@ -430,6 +470,14 @@
         "failure_type": "product",
         "triaged": true,
         "error_message": "AssertionError: Both conflicting rules applied simultaneously. conflict_resolver priority check not implemented."
+      },
+      {
+        "tc_id": "TC-010",
+        "tc_name": "Apply expired promo code",
+        "status": "failed",
+        "failure_type": "environment",
+        "triaged": true,
+        "error_message": "kubernetes.client.ApiException: pod evicted, node under memory pressure. Run did not complete."
       }
     ]
   },
@@ -493,6 +541,14 @@
         "failure_type": "environment",
         "triaged": true,
         "error_message": "ConnectionError: Payment sandbox unreachable during test run. Infrastructure issue confirmed by DevOps - not product defect."
+      },
+      {
+        "tc_id": "TC-017",
+        "tc_name": "Product search by keyword",
+        "status": "failed",
+        "failure_type": "environment",
+        "triaged": true,
+        "error_message": "ElasticsearchConnectionError: staging-es cluster status RED, 3 unassigned shards."
       }
     ]
   },
@@ -564,6 +620,14 @@
         "failure_type": "product",
         "triaged": true,
         "error_message": "ValidationError: line_item_validator rejecting valid products due to case-sensitive SKU comparison bug."
+      },
+      {
+        "tc_id": "TC-030",
+        "tc_name": "Guest checkout without account",
+        "status": "failed",
+        "failure_type": "script",
+        "triaged": true,
+        "error_message": "IndexError: list index out of range in fixture setup. Test assumes 3 seeded products; the seed script creates 2."
       }
     ]
   },
@@ -628,6 +692,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-023",
+        "tc_name": "Password reset email deliverability",
+        "status": "failed",
+        "failure_type": "script",
+        "triaged": true,
+        "error_message": "ImportError: cannot import name 'send_stub' from tests.doubles after the fixture reorganisation."
       }
     ]
   },
@@ -699,6 +771,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-022",
+        "tc_name": "Shipping update notification",
+        "status": "failed",
+        "failure_type": "environment",
+        "triaged": true,
+        "error_message": "SSLCertVerificationError: certificate for staging-notifications.internal expired 2024-02-04."
       }
     ]
   },
@@ -759,6 +839,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-007",
+        "tc_name": "Add item to cart",
+        "status": "failed",
+        "failure_type": "script",
+        "triaged": true,
+        "error_message": "AssertionError: expected order id 1001, got 1002. Test hardcodes an id that a parallel worker had already consumed."
       }
     ]
   },
@@ -811,6 +899,14 @@
         "failure_type": "product",
         "triaged": true,
         "error_message": "AssertionError: Order rejected. Guest session has no reservation holder id; reservation requires authenticated actor."
+      },
+      {
+        "tc_id": "TC-005",
+        "tc_name": "OAuth login with Google",
+        "status": "failed",
+        "failure_type": "environment",
+        "triaged": true,
+        "error_message": "HTTP 429 from accounts.google.com. OAuth sandbox quota exhausted for the day."
       }
     ]
   },
@@ -863,6 +959,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-017",
+        "tc_name": "Product search by keyword",
+        "status": "failed",
+        "failure_type": "script",
+        "triaged": true,
+        "error_message": "TypeError: build_cart() missing 1 required positional argument 'currency' after the test-utils refactor."
       }
     ]
   },
@@ -914,6 +1018,14 @@
         "failure_type": "product",
         "triaged": true,
         "error_message": "AuthenticationError: guest token rotation not supported; guest session invalidated at payment step."
+      },
+      {
+        "tc_id": "TC-018",
+        "tc_name": "Filter products by category",
+        "status": "failed",
+        "failure_type": "environment",
+        "triaged": true,
+        "error_message": "Search returned partial results. Staging index rebuild was in progress for the duration of the run."
       }
     ]
   },
@@ -958,6 +1070,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-020",
+        "tc_name": "Stock level update after purchase",
+        "status": "failed",
+        "failure_type": "environment",
+        "triaged": true,
+        "error_message": "OSError: [Errno 28] No space left on device writing to /var/lib/ci/artifacts."
       }
     ]
   },
@@ -1009,6 +1129,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-008",
+        "tc_name": "Remove item from cart",
+        "status": "failed",
+        "failure_type": "script",
+        "triaged": true,
+        "error_message": "NoSuchElementException: .remove-btn. Page object still targets the pre-redesign markup."
       }
     ]
   },
@@ -1061,6 +1189,14 @@
         "failure_type": "script",
         "triaged": true,
         "error_message": "SeleniumTimeoutException: refund confirmation modal locator stale after UI library bump."
+      },
+      {
+        "tc_id": "TC-029",
+        "tc_name": "Order status transitions",
+        "status": "failed",
+        "failure_type": "environment",
+        "triaged": true,
+        "error_message": "DNS resolution failed for orders-service.staging.svc.cluster.local after the cluster DNS restart."
       }
     ]
   },
@@ -1113,6 +1249,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-003",
+        "tc_name": "Account lockout after repeated failed logins",
+        "status": "failed",
+        "failure_type": "environment",
+        "triaged": true,
+        "error_message": "redis.exceptions.ConnectionError: lockout counter store unreachable. Redis pod was OOMKilled mid-run."
       }
     ]
   },
@@ -1157,6 +1301,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-029",
+        "tc_name": "Order status transitions",
+        "status": "failed",
+        "failure_type": "script",
+        "triaged": true,
+        "error_message": "AssertionError: [5] != (5,). Test compares a list against a tuple; the underlying values are identical."
       }
     ]
   },
@@ -1208,6 +1360,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-010",
+        "tc_name": "Apply expired promo code",
+        "status": "failed",
+        "failure_type": "script",
+        "triaged": true,
+        "error_message": "KeyError: 'discount' raised inside the assertion helper. The helper reads a field this fixture never populates."
       }
     ]
   },
@@ -1250,6 +1410,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-028",
+        "tc_name": "Order creation with multiple line items",
+        "status": "failed",
+        "failure_type": "environment",
+        "triaged": true,
+        "error_message": "psycopg2.OperationalError: server closed the connection unexpectedly during the nightly staging DB restore."
       }
     ]
   },
@@ -1301,6 +1469,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-019",
+        "tc_name": "Out of stock product display",
+        "status": "failed",
+        "failure_type": "script",
+        "triaged": true,
+        "error_message": "TimeoutError after hardcoded sleep(2). CI agent was under load; the test polls nothing and has no retry."
       }
     ]
   },
@@ -1344,6 +1520,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-013",
+        "tc_name": "Payment with new credit card",
+        "status": "failed",
+        "failure_type": "environment",
+        "triaged": true,
+        "error_message": "Gateway sandbox returned 503 Service Unavailable - provider scheduled maintenance window."
       }
     ]
   },
@@ -1395,6 +1579,14 @@
         "failure_type": null,
         "triaged": true,
         "error_message": null
+      },
+      {
+        "tc_id": "TC-018",
+        "tc_name": "Filter products by category",
+        "status": "failed",
+        "failure_type": "script",
+        "triaged": true,
+        "error_message": "AssertionError: '2024-03-08' != '08/03/2024'. Test hardcodes a locale-specific date format."
       }
     ]
   }

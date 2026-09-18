@@ -48,12 +48,20 @@ TC_STORE_PATH = os.path.join(VECTOR_STORE_DIR, "test_cases")
 # Loaders: JSON → domain objects
 # ---------------------------------------------------------------------------
 
-def load_builds_from_json(path: str) -> list[BuildDocument]:
+def load_builds_from_json(path: str, skip_untriaged: bool = True) -> list[BuildDocument]:
     """
     Loads build records from JSON and deserialises into BuildDocument objects.
 
-    Skips any build where is_ready_to_embed is False (i.e. failures are
-    still pending triage) and logs which ones were skipped.
+    Args:
+        skip_untriaged:
+            When True (the default) builds with failures still pending triage
+            are dropped, because embedding an untriaged failure is exactly the
+            index poisoning the triage gate exists to prevent.
+
+            Triage tooling must pass False. Those builds are precisely the ones
+            it needs to see, and with the default it would be handed an empty
+            list and report 'nothing to do' about the backlog it was invoked to
+            clear -- the gate would hide its own queue.
     """
     with open(path, "r", encoding="utf-8") as f:
         raw = json.load(f)
@@ -93,7 +101,7 @@ def load_builds_from_json(path: str) -> list[BuildDocument]:
             tc_results=tc_results,
         )
 
-        if build.is_ready_to_embed:
+        if build.is_ready_to_embed or not skip_untriaged:
             builds.append(build)
         else:
             skipped.append(build.build_id)

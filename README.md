@@ -94,12 +94,14 @@ test-scalpel/
 │   ├── indexer.py                  # Chroma vector store indexing
 │   ├── retriever.py                # Queries both indexes for an incoming build
 │   ├── ranker.py                   # Fuses both signals into a ranked list
-│   └── policy.py                   # Full-regression cadence and release gate
+│   ├── policy.py                   # Full-regression cadence and release gate
+│   └── triage.py                   # LLM failure classification (the generation step)
 ├── scripts/
 │   ├── ingest_builds.py            # CLI: ingest build history
 │   ├── ingest_test_cases.py        # CLI: ingest TestRail test cases
 │   ├── recommend.py                # CLI: which tests to run for a new build
-│   └── evaluate.py                 # CLI: leave-one-out recall vs baselines
+│   ├── evaluate.py                 # CLI: leave-one-out recall vs baselines
+│   └── triage.py                   # CLI: LLM triage + accuracy evaluation
 ├── vector_store/                   # Chroma persisted indexes (gitignored)
 ├── .env.example
 ├── requirements.txt
@@ -156,6 +158,14 @@ python scripts/recommend.py --data path/to/build.json
 ```bash
 python scripts/evaluate.py             # recall vs random and same-service baselines
 python scripts/evaluate.py --verbose   # per-build breakdown, including misses
+```
+
+### 8. Triage failures with the LLM
+```bash
+python scripts/triage.py                        # classify the untriaged backlog (dry run)
+python scripts/triage.py --apply                # write verdicts back
+python scripts/triage.py --evaluate             # score against human labels
+python scripts/triage.py --evaluate --verbose   # show every disagreement
 ```
 
 ---
@@ -285,6 +295,75 @@ order once across 23 builds.
 
 ---
 
+## LLM Triage Results
+
+The triage gate decides what enters the index: `product` failures are embedded
+as signal, everything else is stored and ignored. Until now that gate was a
+human. `src/triage.py` is the generation step that automates it — and the only
+part of the system where a model reads something and forms a judgement rather
+than computing a cosine.
+
+Scored against 85 human-labelled failures:
+
+| Metric | Result |
+|---|---|
+| Accuracy | **94%** (80/85) |
+| Majority-class baseline | 67% |
+| Coverage (committed to a label) | 100% |
+| **Index poisoning** | **0 / 28 (0%)** |
+| Signal loss | 4 / 57 (7%) |
+
+| Class | Recall | Precision | Support |
+|---|---|---|---|
+| product | 0.93 | **1.00** | 57 |
+| script | 0.93 | 0.93 | 14 |
+| environment | 1.00 | 0.78 | 14 |
+
+### Why "index poisoning" is the number that matters
+
+The two error directions are not symmetric, so accuracy alone is the wrong
+target.
+
+Labelling a script or environment failure as **product** writes a false coupling
+into the build history index — *"this test broke when these files changed"*. That
+lie is then retrieved, ranked and acted on for every future build touching
+similar code, and nothing in the pipeline will ever detect or correct it. One bad
+label degrades selection permanently.
+
+Labelling a product failure as script/environment merely loses one real coupling.
+It gets learned the next time that code breaks that test.
+
+Missing signal is recoverable; a poisoned index is not. So the classifier is
+built to abstain rather than guess, and `product` precision of **1.00** — not
+overall accuracy — is what makes it safe to run unattended.
+
+### The failure mode it does have
+
+Three of the four signal-loss errors share a shape: **a timeout or connection
+symptom masking a product root cause.**
+
+> `TimeoutError: InventoryClient.reserve() exceeded 3s for 4-line-item order.`
+> `Reservation is now serial per line.`
+
+The root cause is application code — reservation was made serial — but the
+symptom reads as infrastructure, and the model called it `environment`. The
+prompt explicitly warns to read for root cause over symptom; it is not enough.
+This lands in the cheap error direction, so it is tolerable, but it is a real and
+nameable weakness rather than random noise.
+
+### What has not been tested
+
+Coverage was 100% — the confidence floor never fired, and no failure was
+abstained on. The abstention path is the system's main safety mechanism and this
+sample never exercised it. It is designed, not demonstrated.
+
+One of the five disagreements is arguably a **bad label in the original Phase 1
+fixture** rather than a model error (`BUILD-004 / TC-023` is labelled `script`
+while its error message describes an environment failure). It was left
+uncorrected rather than adjusted after the fact — see `data/README.md`.
+
+---
+
 ## Phases
 
 ### ✅ Phase 1 — Embedding, Chunking & Indexing *(complete)*
@@ -304,11 +383,12 @@ order once across 23 builds.
   can distinguish retrieval from folder-based tagging (see `data/README.md`)
 - Cross-service vs same-service recall reported separately
 
-### 🔲 Phase 3 — Feedback Loop *(next)*
-- SDET feedback on suggestions (thumbs up/down per TC), fed back as a ranking prior
-- LLM-based auto-classification of `failure_type` from `error_message`
-  (the field is already captured at ingestion for exactly this)
-- Recency weighting — an 8-month-old coupling should not count as much as
+### 🟡 Phase 3 — Feedback Loop *(in progress)*
+- ✅ LLM auto-classification of `failure_type` from `error_message`, with
+  abstention and an asymmetric-cost evaluation
+- ✅ Triage labels extended to 57/14/14 so the classifier is measurable at all
+- 🔲 SDET feedback on suggestions (thumbs up/down per TC), fed back as a ranking prior
+- 🔲 Recency weighting — an 8-month-old coupling should not count as much as
   last week's, and nothing currently decays
 
 ---
@@ -324,6 +404,7 @@ order once across 23 builds.
 ## Tech Stack
 
 - **Embeddings:** OpenAI `text-embedding-3-small`
+- **Triage LLM:** OpenAI `gpt-4o-mini` (temperature 0, JSON mode)
 - **Vector store:** ChromaDB (cosine similarity)
 - **Orchestration:** LangChain
 - **Language:** Python 3.12

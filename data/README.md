@@ -78,6 +78,47 @@ rather than quietly bypassed.
 
 ---
 
+## Triage labels (added for Phase 3)
+
+The LLM triage classifier is scored against the `failure_type` labels in this
+file, and the original distribution made that impossible: 57 `product` against
+2 `script` and 2 `environment`. A classifier that always answered "product"
+would have scored 93%.
+
+24 further failures were added across the existing builds - 12 `script`, 12
+`environment` - bringing the split to **57 / 14 / 14** and the majority-class
+baseline down to 67%.
+
+These additions do **not** affect retrieval. `build_to_text()` embeds only
+product failures and passed test-case ids, and a script or environment failure
+appears in neither, so the Phase 2 numbers are unchanged by construction. That
+was verified by re-running `scripts/evaluate.py` before and after.
+
+Two of them are deliberately ambiguous, to give the abstention path something
+real to work on:
+
+| Build | Test | Label | Why it is hard |
+|---|---|---|---|
+| BUILD-022 | TC-019 | `script` | Reads as an environment problem (loaded CI agent), but the root cause is a hardcoded sleep with no polling. |
+| BUILD-014 | TC-018 | `environment` | Reads as a product search defect, but the staging index was mid-rebuild. |
+
+### A known bad label, left in place
+
+`BUILD-004 / TC-023` is labelled `script` in the original Phase 1 fixture, but
+its own error message reads *"SMTP sandbox was unavailable in CI environment"* -
+which is this schema's definition of `environment`. The label contradicts its
+own evidence.
+
+The classifier disagrees with it and is arguably right, which would make true
+accuracy 95% rather than 94%.
+
+**It has been left unchanged on purpose.** Correcting a label *after* seeing the
+model disagree with it is the exact failure this document exists to prevent, and
+a reader who saw that edit would have no way to know it was the only one. One
+point of accuracy is cheaper than the credibility of every other number here.
+
+---
+
 ## What was NOT done
 
 The data was written before the evaluation was re-run, and was not adjusted
