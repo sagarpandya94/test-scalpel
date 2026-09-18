@@ -29,7 +29,8 @@ Test-Scalpel maintains two vector indexes:
 ### 1. Build History Index
 Every deployed build is indexed as a document capturing:
 - Which repos and files were touched (union across all MRs in the build)
-- Which test cases failed — **product failures only**, after SDET triage
+- Which test cases failed — **product failures only**, after triage
+  (human, or the LLM classifier in `src/triage.py`)
 
 When a new build arrives, Test-Scalpel finds historically similar builds and surfaces the test cases that failed on those builds.
 
@@ -84,7 +85,8 @@ This maintains data coverage across the full test suite while still dramatically
 ```
 test-scalpel/
 ├── data/
-│   ├── sample_builds.json          # Synthetic build history (10 builds, 6 microservices)
+│   ├── README.md                   # Synthetic data design — read before trusting any metric
+│   ├── sample_builds.json          # Synthetic build history (24 builds, 6 microservices)
 │   ├── sample_test_cases.json      # Synthetic TestRail test cases (30 cases)
 │   └── sample_new_build.json       # An un-run build to generate recommendations for
 ├── src/
@@ -135,6 +137,10 @@ cp .env.example .env
 # Edit .env and add your OPENAI_API_KEY
 ```
 
+Two optional overrides, both with working defaults:
+`OPENAI_EMBEDDING_MODEL` (default `text-embedding-3-small`) and
+`OPENAI_TRIAGE_MODEL` (default `gpt-4o-mini`).
+
 ### 4. Ingest test cases (do this once, or when TestRail changes)
 ```bash
 python scripts/ingest_test_cases.py --reset
@@ -142,9 +148,13 @@ python scripts/ingest_test_cases.py --reset
 
 ### 5. Ingest build history (backfill, then run after each build cycle)
 ```bash
-python scripts/ingest_builds.py --reset    # first time (full backfill)
-python scripts/ingest_builds.py            # subsequent runs (incremental)
+python scripts/ingest_builds.py --reset    # wipe and rebuild from scratch
+python scripts/ingest_builds.py            # upsert into the existing index
 ```
+
+> ⚠️ Without `--reset` this upserts rather than duplicating, but it still
+> **re-embeds every build in the file on every run** — there is no skip-existing
+> filter. Fine at 24 builds, wasteful at 2400. See Known Limitations.
 
 ### 6. Get recommendations for a new build
 ```bash
@@ -152,12 +162,17 @@ python scripts/recommend.py                            # human-readable report
 python scripts/recommend.py --json                     # for CI consumption
 python scripts/recommend.py --release                  # forces full regression
 python scripts/recommend.py --data path/to/build.json
+python scripts/recommend.py --top 20 --min-score 0.2   # size the selection
+python scripts/recommend.py --builds-k 12              # retrieve more neighbours
+python scripts/recommend.py --same-service-only        # narrow, fast smoke selection
 ```
 
 ### 7. Evaluate the selector
 ```bash
 python scripts/evaluate.py             # recall vs random and same-service baselines
 python scripts/evaluate.py --verbose   # per-build breakdown, including misses
+python scripts/evaluate.py --k 5 7 10 15 --builds-k 8   # sweep cut-offs and depth
+python scripts/evaluate.py --json                       # machine-readable
 ```
 
 ### 8. Triage failures with the LLM
@@ -166,6 +181,7 @@ python scripts/triage.py                        # classify the untriaged backlog
 python scripts/triage.py --apply                # write verdicts back
 python scripts/triage.py --evaluate             # score against human labels
 python scripts/triage.py --evaluate --verbose   # show every disagreement
+python scripts/triage.py --build BUILD-011      # restrict to one build
 ```
 
 ---
@@ -398,6 +414,57 @@ uncorrected rather than adjusted after the fact — see `data/README.md`.
 - It does not replace your test suite — it selects from it
 - It does not guarantee zero missed defects on RAG-only builds — it reduces risk intelligently
 - It is not a one-shot solution — it gets smarter with every build it indexes
+
+---
+
+## Known Limitations
+
+Everything below is measured or verified in the code, not speculative.
+
+### Precision is low, by design
+0.16 at k=15 — run 15 tests, expect 2–3 to be genuinely at risk. This is the
+correct trade for a recall-first tool (a missed defect costs far more than a
+redundant test), but it means the suggestions are a *shortlist*, not a
+prediction. Do not present the precision number without the recall one.
+
+### Every tuned constant comes from 24 synthetic builds
+`builds_k=8`, the confidence band cut-offs, `W_HISTORY`/`W_SEMANTIC` and
+`PASS_PENALTY` were all calibrated against the synthetic dataset. They are
+documented with the measurements that produced them, but they are not
+transferable — re-run `scripts/evaluate.py` against real history before
+trusting any of them. `data/README.md` records exactly what was planted in the
+data and why.
+
+### Ingestion is not incremental
+`index_builds()` embeds every build passed to it. `--reset` controls whether the
+store is wiped first, not whether existing builds are skipped, so each run
+re-embeds the entire history. Upsert prevents duplicate rows, not duplicate
+cost. At a few hundred builds this becomes the dominant expense of a CI run.
+
+### There are no automated tests
+None — in a test-selection tool. The invariants that matter are currently only
+verified by running `scripts/evaluate.py` and reading the numbers: that
+`_proportional` beats min-max for neighbour weights, that the confidence bands
+stay monotonic, that self-exclusion actually excludes. Anyone tuning a weight
+has no way to find out they broke calibration.
+
+### The triage abstention path has never fired
+Coverage was 100% on the evaluation set — no failure fell below the confidence
+floor. Abstention is the main protection against poisoning the index, and it is
+designed rather than demonstrated.
+
+### Confidence is close to rank position
+After measurement, the fused score turned out not to support a calibrated
+probability (see *The confidence column was wrong*). The shipped bands are
+mostly "where did this land in the list", plus a demotion for picks with no
+history behind them. It is honest, but it carries less independent information
+than the word "confidence" suggests.
+
+### No real data source
+Builds and test cases are hand-written JSON. There is no TestRail, GitLab or CI
+adapter — `recommend.py --json` emits a consumable shape, but nothing consumes
+it. This is deliberate for a portfolio project and would be the first thing to
+build for real use.
 
 ---
 
